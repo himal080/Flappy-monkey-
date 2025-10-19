@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome to Himal Game</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{display:flex;justify-content:center;align-items:center;height:100vh;background:linear-gradient(to bottom,#70c5ce,#ffffff);overflow:hidden;}
+  canvas{border:3px solid #333;border-radius:15px;background:#70c5ce;}
+  #gameTitle{position:absolute;top:10px;font-size:1.2rem;font-weight:bold;color:#fff;text-shadow:2px 2px 3px #000;background:rgba(0,0,0,0.3);padding:5px 10px;border-radius:10px;}
+  #score{position:absolute;top:45px;font-size:1.1rem;font-weight:bold;color:#fff;text-shadow:2px 2px 3px #000;background:rgba(0,0,0,0.3);padding:5px 10px;border-radius:10px;}
+  #startMessage{position:absolute;top:50%;transform:translateY(-50%);color:white;font-size:1.5rem;font-weight:bold;background: rgba(0,0,0,0.5);padding:10px 20px;border-radius:12px;text-align:center;}
+  #highScoreMsg{position:absolute;top:80px;font-size:1.1rem;font-weight:bold;color:yellow;text-shadow:2px 2px 3px #000;background: rgba(0,0,0,0.5);padding:5px 10px;border-radius:10px;display:none;}
+</style>
+</head>
+<body>
+
+<div id="gameTitle">🏆 Welcome to Himal Game 🏆</div>
+<div id="score">Score: 0</div>
+<div id="highScoreMsg">🎉 New High Score! 🎉</div>
+<div id="startMessage">Tap or Press Space to Start</div>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+
+<audio id="flapSound" src="https://freesound.org/data/previews/6/6962_5152-lq.mp3"></audio>
+<audio id="hitSound" src="https://freesound.org/data/previews/2/2543_5152-lq.mp3"></audio>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let birdImg = new Image();
+birdImg.src = "Himal.jpg";
+
+let birdX = 50, birdY = 150, birdW = 40, birdH = 40;
+let gravity = 0.4, velocity = 0, lift = -7;
+let pipes = [], frame = 0, score = 0, started = false, gameOver = false;
+let clouds = [], pipeCounter = 0;
+
+for(let i=0;i<5;i++) clouds.push({x:Math.random()*400, y:Math.random()*200, w:60, h:30});
+
+const flapSound = document.getElementById("flapSound");
+const hitSound = document.getElementById("hitSound");
+const highScoreMsg = document.getElementById("highScoreMsg");
+let highScore = localStorage.getItem("himalHighScore")||0;
+
+function drawBird(){ctx.save();ctx.translate(birdX+birdW/2,birdY+birdH/2);ctx.rotate(velocity*0.05);ctx.drawImage(birdImg,-birdW/2,-birdH/2,birdW,birdH);ctx.restore();}
+function drawClouds(){ctx.fillStyle="rgba(255,255,255,0.8)";clouds.forEach(c=>{ctx.beginPath();ctx.ellipse(c.x,c.y,c.w,c.h,0,0,2*Math.PI);ctx.fill();c.x-=0.5;if(c.x+c.w<0)c.x=canvas.width+c.w;});}
+
+function drawPipes(){
+  pipes.forEach(p=>{
+    ctx.fillStyle="#228B22";
+    ctx.fillRect(p.x,0,p.width,p.top);
+    ctx.fillRect(p.x,canvas.height-p.bottom,p.width,p.bottom);
+    let wiggle = Math.sin(frame*0.1+p.number)*3;
+    ctx.fillStyle="white";
+    ctx.font="18px Arial";ctx.textAlign="center";
+    const name="HIMAL";
+    for(let i=0;i<name.length;i++){
+      ctx.fillText(name[i],p.x+p.width/2+wiggle,20+i*20);
+      ctx.fillText(name[i],p.x+p.width/2+wiggle,canvas.height-p.bottom+20+i*20);
+    }
+    ctx.fillStyle="yellow";ctx.font="20px Arial";
+    ctx.fillText(p.number,p.x+p.width/2+wiggle,p.top+30);
+    ctx.fillText(p.number,p.x+p.width/2+wiggle,canvas.height-p.bottom-10);
+  });
+}
+
+function updatePipes(){
+  if(frame%80===0){
+    let gap=140,top=Math.random()*150+80;
+    pipeCounter++;
+    pipes.push({x:canvas.width,top,bottom:canvas.height-top-gap,width:50,number:pipeCounter});
+  }
+  pipes.forEach(p=>{
+    p.x-=2;
+    if(p.x+p.width<0)pipes.shift(),score++,document.getElementById("score").textContent="Score: "+score;
+    if(birdX+birdW>p.x && birdX<p.x+p.width && (birdY<p.top||birdY+birdH>canvas.height-p.bottom)){if(!gameOver)hitSound.play();gameOver=true;}
+  });
+}
+
+function drawGround(){ctx.fillStyle="#ded895";ctx.fillRect(0,canvas.height-50,canvas.width,50);}
+function updateBird(){velocity+=gravity;birdY+=velocity;if(birdY+birdH>canvas.height-50||birdY<0){if(!gameOver)hitSound.play();gameOver=true;}}
+function drawBackground(){ctx.fillStyle="#70c5ce";ctx.fillRect(0,0,canvas.width,canvas.height);}
+function drawText(msg,y,size=30){ctx.fillStyle="white";ctx.font=`${size}px Arial`;ctx.textAlign="center";ctx.fillText(msg,canvas.width/2,y);}
+
+function resetGame(){
+  if(score>highScore){highScore=score;localStorage.setItem("himalHighScore",highScore);highScoreMsg.style.display="block";setTimeout(()=>{highScoreMsg.style.display="none"},2000);}
+  birdY=150;velocity=0;pipes=[];frame=0;score=0;started=false;gameOver=false;pipeCounter=0;
+  document.getElementById("score").textContent="Score: 0";
+  document.getElementById("startMessage").style.display="block";drawStartScreen();
+}
+
+function drawGameOverScreen(){drawBackground();drawClouds();drawGround();drawBird();drawText("Game Over!",250,30);drawText(`Your Score: ${score}`,300,22);drawText(`High Score: ${highScore}`,340,22);drawText("Tap to Restart",380,20);}
+
+function gameLoop(){if(!started)return;if(gameOver){drawGameOverScreen();return;}drawBackground();drawClouds();updateBird();updatePipes();drawPipes();drawGround();drawBird();frame++;requestAnimationFrame(gameLoop);}
+function flap(){velocity=lift;flapSound.play();}
+
+window.addEventListener("touchstart",()=>{
+  if(!started){started=true;document.getElementById("startMessage").style.display="none";gameLoop();}
+  else if(gameOver)resetGame();else flap();
+});
+window.addEventListener("keydown",e=>{
+  if(e.code==="Space"){if(!started){started=true;document.getElementById("startMessage").style.display="none";gameLoop();}
+  else if(gameOver)resetGame();else flap();}
+});
+
+function drawStartScreen(){drawBackground();drawClouds();drawGround();drawBird();drawText("Tap or Press Space to Start",300,22);}
+drawStartScreen();
+</script>
+</body>
+</html>
